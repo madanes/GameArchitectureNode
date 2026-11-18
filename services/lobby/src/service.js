@@ -1,29 +1,17 @@
 import { randomUUID, randomInt } from 'node:crypto';
 import { getEngine, listGames } from '@ipm/game-engines';
 import { badRequest, conflict, forbidden, notFound } from '@ipm/common';
+import { BOT_NAMES } from './matching.js';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
-// Atomic matchmaking: enqueue the user (once) and, if enough players wait, pop them all in one step.
-const MATCH_LUA = `
-if redis.call('SADD', KEYS[2], ARGV[1]) == 1 then redis.call('RPUSH', KEYS[1], ARGV[1]) end
-local size = tonumber(ARGV[2])
-if redis.call('LLEN', KEYS[1]) >= size then
-  local users = redis.call('LRANGE', KEYS[1], 0, size - 1)
-  redis.call('LTRIM', KEYS[1], size, -1)
-  for _, u in ipairs(users) do redis.call('SREM', KEYS[2], u) end
-  return users
-end
-return {}`;
-
 /**
- * Lobby: rooms (Mongo `lobby.rooms`) + quick-match queues (Redis).
+ * Lobby: rooms (Mongo `lobby.rooms`). Matchmaking lives in matchmaker.js and uses createMatchRoom().
  * Publishes `room.started` on the `events:room` stream; game-service reacts to it.
  */
-export function createLobbyService({ db, redis, bus }) {
+export function createLobbyService({ db, bus }) {
   const rooms = db.collection('rooms');
-  const queueKey = (game, size) => `lobby:mm:${game}:${size}`;
 
   async function init() {
     await rooms.createIndex({ code: 1 }, { unique: true });
@@ -81,14 +69,27 @@ export function createLobbyService({ db, redis, bus }) {
     return after;
   }
 
-  async function startRoom(user, roomId) {
+  /** Host starts the room. With fillWithBots=true every empty seat is taken by a bot. */
+  async function startRoom(user, roomId, { fillWithBots = false } = {}) {
     const room = await rooms.findOne({ _id: roomId });
     if (!room) throw notFound('Room not found');
     if (room.hostId !== user.id) throw forbidden('Only the host can start the game');
     const { minPlayers } = validateGame(room.game, room.maxPlayers);
-    if (room.players.length < minPlayers) throw conflict(`Need at least ${minPlayers} players`);
+    if (fillWithBots && room.players.length < room.maxPlayers) {
+      const bots = Array.from({ length: room.maxPlayers - room.players.length }, (_, i) => makeBot(i));
+      const filled = await rooms.findOneAndUpdate(
+        { _id: roomId, status: 'waiting', $expr: { $eq: [{ $size: '$players' }, room.players.length] } },
+        { $push: { players: { $each: bots } } },
+        { returnDocument: 'after' },
+      );
+      if (!filled) throw conflict('Room changed, try again');
+    } else if (room.players.length < minPlayers) {
+      throw conflict(`Need at least ${minPlayers} players`);
+    }
     return launch(roomId);
   }
+
+  const makeBot = (i) => ({ userId: `bot:${randomUUID()}`, username: `Bot ${BOT_NAMES[randomInt(BOT_NAMES.length)]}`, isBot: true, rating: 1000 + i });
 
   /** waiting -> playing is a compare-and-set, so a room can only ever start once. */
   async function launch(roomId) {
@@ -98,46 +99,19 @@ export function createLobbyService({ db, redis, bus }) {
     return started;
   }
 
-  async function quickMatch(user, { game, maxPlayers }) {
-    validateGame(game, maxPlayers);
-    const key = queueKey(game, maxPlayers);
-    await redis.set(`lobby:mm:name:${user.id}`, user.username, 'EX', 600);
-    await redis.set(`lobby:mm:user:${user.id}`, `${game}:${maxPlayers}`, 'EX', 600);
-    await redis.del(`lobby:mm:matched:${user.id}`);
-    const ids = await redis.eval(MATCH_LUA, 2, key, `${key}:set`, user.id, maxPlayers);
-    if (!ids.length) return { status: 'queued' };
-
-    const names = await redis.mget(ids.map((id) => `lobby:mm:name:${id}`));
+  /** Used by the matchmaker: create an already-full room and start it immediately. */
+  async function createMatchRoom({ game, maxPlayers, players }) {
     const room = {
-      _id: randomUUID(), code: newCode(), game, maxPlayers, isPrivate: true, status: 'waiting', hostId: ids[0],
-      players: ids.map((id, i) => ({ userId: id, username: names[i] || 'Player' })), createdAt: new Date(),
+      _id: randomUUID(), code: newCode(), game, maxPlayers, isPrivate: true, status: 'waiting',
+      hostId: players.find((p) => !p.isBot).userId, players, matchmade: true, createdAt: new Date(),
     };
     await rooms.insertOne(room);
-    await launch(room._id);
-    for (const id of ids) await redis.set(`lobby:mm:matched:${id}`, room._id, 'EX', 300);
-    return { status: 'matched', roomId: room._id };
-  }
-
-  async function quickMatchStatus(user) {
-    const roomId = await redis.get(`lobby:mm:matched:${user.id}`);
-    if (roomId) return { status: 'matched', roomId };
-    return { status: (await redis.exists(`lobby:mm:user:${user.id}`)) ? 'queued' : 'idle' };
-  }
-
-  async function cancelQuickMatch(user) {
-    const q = await redis.get(`lobby:mm:user:${user.id}`);
-    if (q) {
-      const [game, size] = q.split(':');
-      const key = queueKey(game, size);
-      await redis.lrem(key, 0, user.id);
-      await redis.srem(`${key}:set`, user.id);
-    }
-    await redis.del(`lobby:mm:user:${user.id}`);
+    return launch(room._id);
   }
 
   const getRoom = async (id) => (await rooms.findOne({ _id: id })) ?? (() => { throw notFound('Room not found'); })();
   const listOpen = (game) => rooms.find({ status: 'waiting', isPrivate: false, ...(game && { game }) }).sort({ createdAt: -1 }).limit(50).toArray();
   const markFinished = (roomId) => rooms.updateOne({ _id: roomId }, { $set: { status: 'finished', finishedAt: new Date() } });
 
-  return { init, createRoom, joinRoom, leaveRoom, startRoom, quickMatch, quickMatchStatus, cancelQuickMatch, getRoom, listOpen, markFinished, listGames };
+  return { init, validateGame, createRoom, joinRoom, leaveRoom, startRoom, createMatchRoom, getRoom, listOpen, markFinished, listGames };
 }

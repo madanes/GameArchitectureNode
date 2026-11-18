@@ -3,7 +3,7 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
-const services = ['auth', 'lobby', 'game', 'stats', 'gateway'];
+const services = ['auth', 'lobby', 'game', 'stats', 'league', 'rewards', 'gateway'];
 const children = services.map((name) => {
   const child = spawn('node', ['--watch', '--env-file-if-exists=.env', `services/${name}/src/index.js`], { stdio: ['ignore', 'pipe', 'pipe'] });
   for (const stream of [child.stdout, child.stderr]) {

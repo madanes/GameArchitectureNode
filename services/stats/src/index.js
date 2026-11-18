@@ -21,8 +21,10 @@ await bus.subscribe('events:game', 'stats-service', async ({ type, data }) => {
   if (type !== 'game.finished') return;
   // Idempotency: events are at-least-once, so process each match exactly once.
   try { await processed.insertOne({ _id: data.matchId, at: new Date() }); } catch (err) { if (isDuplicateKey(err)) return; throw err; }
+  const bots = new Set(data.players.filter((p) => p.isBot).map((p) => p.userId)); // bots have no stats
   try {
     for (const [i, userId] of data.ranking.entries()) {
+      if (bots.has(userId)) continue;
       const username = data.players.find((p) => p.userId === userId)?.username;
       const points = POINTS[i] ?? 0;
       await stats.updateOne(

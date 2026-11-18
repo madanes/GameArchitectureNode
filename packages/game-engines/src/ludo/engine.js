@@ -18,6 +18,8 @@
  *  - An exact roll is needed to reach HOME.
  *  - Landing on a lone opponent on a non-safe cell sends it back to the yard.
  *  - Players are ranked in finishing order; the game ends when one player remains.
+ *  - Turn timeout: the platform calls onTimeout(); the engine plays for the absent player.
+ *    MAX_MISSED consecutive timeouts forfeit that player (ranked below everyone still playing).
  * Not implemented (documented): blockades / stacked-token rules.
  */
 import { EngineError } from '../errors.js';
@@ -29,11 +31,13 @@ export const YARD = -1;
 export const LAST_TRACK_POS = 50;
 export const HOME = 56;
 export const TOKENS = 4;
+export const MAX_MISSED = 3;
 export const SAFE_CELLS = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 const COLORS = ['red', 'green', 'yellow', 'blue'];
 const SEATS = { 2: [0, 2], 3: [0, 1, 2], 4: [0, 1, 2, 3] };
 
 export const absCell = (seat, pos) => (seat * 13 + pos) % TRACK;
+const inPlay = (p) => p.rank === null && !p.forfeited;
 
 export function create({ players }) {
   if (players.length < meta.minPlayers || players.length > meta.maxPlayers) {
@@ -50,12 +54,17 @@ export function create({ players }) {
       color: COLORS[seats[i]],
       tokens: Array(TOKENS).fill(YARD),
       rank: null,
+      missed: 0, // consecutive turn timeouts
+      forfeited: false,
+      isBot: !!p.isBot, // bots are driven by the platform (see suggestAction)
+      captures: 0, // opponent tokens sent home (used by missions)
     })),
     turn: 0, // index into players[]
     phase: 'ROLL', // 'ROLL' | 'MOVE'
     dice: null,
     sixes: 0, // consecutive sixes this turn
-    ranking: [], // userIds in finishing order
+    ranking: [], // userIds, best first (complete once status === 'finished')
+    eliminated: [], // forfeited userIds in order of forfeit
     moveCount: 0,
     version: 0,
   };
@@ -83,8 +92,78 @@ export function applyAction(rawState, userId, action, rng) {
   else if (action?.type === 'move') move(state, player, action.token, events);
   else throw new EngineError('BAD_ACTION', 'Unknown action');
 
+  player.missed = 0; // the player is present
   state.version += 1;
   return { state, events };
+}
+
+/**
+ * The current player ran out of time. Plays their turn automatically (roll, then move the
+ * most advanced legal token). After MAX_MISSED consecutive timeouts the player forfeits.
+ */
+export function onTimeout(rawState, rng) {
+  const state = structuredClone(rawState);
+  if (state.status !== 'playing') throw new EngineError('GAME_OVER', 'Game is finished');
+  const player = state.players[state.turn];
+  const events = [{ type: 'timeout', userId: player.userId }];
+  player.missed += 1;
+
+  if (player.missed >= MAX_MISSED) {
+    forfeit(state, player, events);
+  } else {
+    if (state.phase === 'ROLL') roll(state, player, rng, events);
+    if (state.status === 'playing' && state.phase === 'MOVE' && state.players[state.turn] === player) {
+      move(state, player, suggestAction(state).token, events);
+    }
+  }
+  state.version += 1;
+  return { state, events };
+}
+
+/**
+ * The action a simple, sensible player would take now: roll; then finish a token if possible,
+ * otherwise bring a token out of the yard, otherwise advance the furthest token.
+ * Used for AFK auto-play and for bots. Returns null when the game is over.
+ */
+export function suggestAction(state) {
+  if (state.status !== 'playing') return null;
+  if (state.phase === 'ROLL') return { type: 'roll' };
+  const p = state.players[state.turn];
+  const score = (i) => (p.tokens[i] + state.dice === HOME ? 1000 : p.tokens[i] === YARD ? 40 : p.tokens[i]);
+  const legal = legalMoves(state);
+  return { type: 'move', token: legal.reduce((a, b) => (score(b) > score(a) ? b : a), legal[0]) };
+}
+
+/** Remove a player from the game (called on repeated timeouts; usable for "leave game" too). */
+export function forfeitPlayer(rawState, userId) {
+  const state = structuredClone(rawState);
+  const player = state.players.find((p) => p.userId === userId);
+  if (!player || !inPlay(player)) throw new EngineError('NOT_IN_PLAY', 'Player is not in play');
+  const events = [];
+  forfeit(state, player, events);
+  state.version += 1;
+  return { state, events };
+}
+
+function forfeit(state, player, events) {
+  player.forfeited = true;
+  player.tokens = Array(TOKENS).fill(YARD);
+  state.eliminated.push(player.userId);
+  events.push({ type: 'forfeited', userId: player.userId });
+  const active = state.players.filter(inPlay);
+  if (active.length <= 1) return finishGame(state, active, events);
+  if (state.players[state.turn] === player) endTurn(state, events);
+}
+
+/** Ranking: finishers (already in state.ranking), then remaining players, then forfeits (latest forfeit ranks best). */
+function finishGame(state, remaining, events) {
+  for (const p of remaining) state.ranking.push(p.userId);
+  for (const id of [...state.eliminated].reverse()) state.ranking.push(id);
+  state.ranking.forEach((id, i) => { state.players.find((p) => p.userId === id).rank = i + 1; });
+  state.status = 'finished';
+  state.phase = 'ROLL';
+  state.dice = null;
+  events.push({ type: 'game_over', ranking: state.ranking });
 }
 
 function roll(state, player, rng, events) {
@@ -125,6 +204,7 @@ function move(state, player, token, events) {
         if (pos >= 0 && pos <= LAST_TRACK_POS && absCell(other.seat, pos) === cell) {
           other.tokens[i] = YARD;
           captured = true;
+          player.captures += 1;
           events.push({ type: 'captured', by: player.userId, victim: other.userId, token: i });
         }
       });
@@ -138,15 +218,8 @@ function move(state, player, token, events) {
     state.ranking.push(player.userId);
     player.rank = state.ranking.length;
     events.push({ type: 'player_finished', userId: player.userId, rank: player.rank });
-    const remaining = state.players.filter((p) => p.rank === null);
-    if (remaining.length <= 1) {
-      for (const p of remaining) { state.ranking.push(p.userId); p.rank = state.ranking.length; }
-      state.status = 'finished';
-      state.phase = 'ROLL';
-      state.dice = null;
-      events.push({ type: 'game_over', ranking: state.ranking });
-      return;
-    }
+    const remaining = state.players.filter(inPlay);
+    if (remaining.length <= 1) return finishGame(state, remaining, events);
     return endTurn(state, events);
   }
 
@@ -161,7 +234,7 @@ function move(state, player, token, events) {
 
 function endTurn(state, events) {
   let next = state.turn;
-  do { next = (next + 1) % state.players.length; } while (state.players[next].rank !== null);
+  do { next = (next + 1) % state.players.length; } while (!inPlay(state.players[next]));
   state.turn = next;
   state.phase = 'ROLL';
   state.dice = null;

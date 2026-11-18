@@ -43,18 +43,37 @@ services:
   lobby:
     <<: *service
     build: { context: ., args: { SERVICE: lobby } }
-    environment: { <<: *env, LOBBY_PORT: "4002" }
+    environment:
+      <<: *env
+      LOBBY_PORT: "4002"
+      MM_BOTS: ${MM_BOTS:-on}
+      MM_BOT_FILL_SEC: ${MM_BOT_FILL_SEC:-10}
+      MM_MAX_WAIT_SEC: ${MM_MAX_WAIT_SEC:-60}
 
   game:
     <<: *service
     build: { context: ., args: { SERVICE: game } }
-    environment: { <<: *env, GAME_PORT: "4003" }
+    environment:
+      <<: *env
+      GAME_PORT: "4003"
+      TURN_TIMEOUT_MS: ${TURN_TIMEOUT_MS:-20000}
+      BOT_DELAY_MS: ${BOT_DELAY_MS:-900}
     # scale realtime capacity:  docker compose up -d --scale game=3  (put a load balancer in front)
 
   stats:
     <<: *service
     build: { context: ., args: { SERVICE: stats } }
     environment: { <<: *env, STATS_PORT: "4004" }
+
+  league:
+    <<: *service
+    build: { context: ., args: { SERVICE: league } }
+    environment: { <<: *env, LEAGUE_PORT: "4005" }
+
+  rewards:
+    <<: *service
+    build: { context: ., args: { SERVICE: rewards } }
+    environment: { <<: *env, REWARDS_PORT: "4006" }
 
   gateway:
     <<: *service
@@ -67,7 +86,9 @@ services:
       LOBBY_URL: http://lobby:4002
       GAME_URL: http://game:4003
       STATS_URL: http://stats:4004
-    depends_on: [auth, lobby, game, stats]
+      LEAGUE_URL: http://league:4005
+      REWARDS_URL: http://rewards:4006
+    depends_on: [auth, lobby, game, stats, league, rewards]
 
 volumes:
   mongo-data:

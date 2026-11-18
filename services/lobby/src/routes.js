@@ -7,8 +7,9 @@ const createSchema = z.object({
   maxPlayers: z.number().int().min(2).max(8).default(4),
   isPrivate: z.boolean().default(false),
 });
-const matchSchema = z.object({ game: z.string().default('ludo'), maxPlayers: z.number().int().min(2).max(8).default(2) });
+const startSchema = z.object({ fillWithBots: z.boolean().default(false) });
 
+/** Room management over REST. Quick-match is realtime and lives on the WebSocket (see docs/websocket-protocol.md). */
 export function buildRoutes({ service, config }) {
   const r = Router();
   r.get('/games', (_req, res) => res.json(service.listGames()));
@@ -24,10 +25,6 @@ export function buildRoutes({ service, config }) {
   }));
   r.post('/rooms/:idOrCode/join', asyncHandler(async (req, res) => res.json(await service.joinRoom(req.user, req.params.idOrCode))));
   r.post('/rooms/:id/leave', asyncHandler(async (req, res) => res.json(await service.leaveRoom(req.user, req.params.id))));
-  r.post('/rooms/:id/start', asyncHandler(async (req, res) => res.json(await service.startRoom(req.user, req.params.id))));
-
-  r.post('/quickmatch', validate(matchSchema), asyncHandler(async (req, res) => res.json(await service.quickMatch(req.user, req.body))));
-  r.get('/quickmatch', asyncHandler(async (req, res) => res.json(await service.quickMatchStatus(req.user))));
-  r.delete('/quickmatch', asyncHandler(async (req, res) => { await service.cancelQuickMatch(req.user); res.status(204).end(); }));
+  r.post('/rooms/:id/start', validate(startSchema), asyncHandler(async (req, res) => res.json(await service.startRoom(req.user, req.params.id, req.body))));
   return r;
 }
