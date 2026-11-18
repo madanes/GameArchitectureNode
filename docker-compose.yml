@@ -1,0 +1,74 @@
+name: infinityplay
+
+x-service: &service
+  build: { context: ., args: { SERVICE: "" } }
+  restart: unless-stopped
+  environment: &env
+    MONGO_URL: mongodb://mongo:27017
+    REDIS_URL: redis://redis:6379
+    JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+    NODE_ENV: ${NODE_ENV:-development}
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+  depends_on:
+    mongo: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  mongo:
+    image: mongo:7
+    volumes: [mongo-data:/data/db]
+    ports: ["27017:27017"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redis-data:/data]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  auth:
+    <<: *service
+    build: { context: ., args: { SERVICE: auth } }
+    environment: { <<: *env, AUTH_PORT: "4001" }
+
+  lobby:
+    <<: *service
+    build: { context: ., args: { SERVICE: lobby } }
+    environment: { <<: *env, LOBBY_PORT: "4002" }
+
+  game:
+    <<: *service
+    build: { context: ., args: { SERVICE: game } }
+    environment: { <<: *env, GAME_PORT: "4003" }
+    # scale realtime capacity:  docker compose up -d --scale game=3  (put a load balancer in front)
+
+  stats:
+    <<: *service
+    build: { context: ., args: { SERVICE: stats } }
+    environment: { <<: *env, STATS_PORT: "4004" }
+
+  gateway:
+    <<: *service
+    build: { context: ., args: { SERVICE: gateway } }
+    ports: ["8080:8080"]
+    environment:
+      <<: *env
+      GATEWAY_PORT: "8080"
+      AUTH_URL: http://auth:4001
+      LOBBY_URL: http://lobby:4002
+      GAME_URL: http://game:4003
+      STATS_URL: http://stats:4004
+    depends_on: [auth, lobby, game, stats]
+
+volumes:
+  mongo-data:
+  redis-data:

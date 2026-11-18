@@ -1,0 +1,22 @@
+{
+  "name": "infinityplay-node",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Microservice platform for turn-based multiplayer games (Ludo first). Node.js + MongoDB + Redis.",
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "infra": "docker compose up -d mongo redis",
+    "test": "node --test \"packages/*/test/*.test.js\"",
+    "smoke": "node scripts/smoke.js",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down"
+  }
+}

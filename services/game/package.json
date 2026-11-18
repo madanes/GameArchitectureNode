@@ -1,0 +1,12 @@
+{
+  "name": "@ipm/game-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node src/index.js" },
+  "dependencies": {
+    "@ipm/common": "*",
+    "@ipm/game-engines": "*",
+    "ws": "^8.18.0"
+  }
+}
