@@ -1,4 +1,4 @@
-import { loadConfig, createLogger, connectMongo, createRedis, createEventBus, createApp, finalize, listen, onShutdown } from '@ipm/common';
+import { loadConfig, createLogger, connectMongo, createRedis, createEventBus, createApp, finalize, listen, onShutdown } from '@gamearch/common';
 import { createLeagueService } from './service.js';
 import { buildRoutes } from './routes.js';
 

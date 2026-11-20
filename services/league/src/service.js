@@ -1,8 +1,8 @@
-import { isDuplicateKey, withLock, notFound, badRequest } from '@ipm/common';
-import { listGames } from '@ipm/game-engines';
+import { isDuplicateKey, withLock, notFound, badRequest } from '@gamearch/common';
+import { listGames } from '@gamearch/game-engines';
 import {
   INITIAL_RATING, BOT_GAME_FACTOR, TIERS, tierFor, nextTier, computeRatingChanges, weeklyPoints, weekId, seasonEnd, seasonReward, REWARD_RANKS,
-} from '@ipm/rating';
+} from '@gamearch/rating';
 
 const mmrKey = (game) => `league:mmr:${game}`; // read by lobby matchmaking (published read-model)
 const boardKey = (game, season, tier) => `league:week:${game}:${season}:${tier}`;

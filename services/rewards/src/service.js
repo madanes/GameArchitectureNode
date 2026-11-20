@@ -1,4 +1,4 @@
-import { isDuplicateKey, conflict, notFound } from '@ipm/common';
+import { isDuplicateKey, conflict, notFound } from '@gamearch/common';
 import {
   DAILY_CYCLE, dailyCoins, MISSIONS, getMission, dayKey, nextReset, streakAfterClaim, liveStreak, progressFromGame,
 } from './definitions.js';

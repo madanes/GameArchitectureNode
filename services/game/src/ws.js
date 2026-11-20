@@ -1,6 +1,6 @@
 import { WebSocketServer } from 'ws';
-import { verifyAccessToken } from '@ipm/common';
-import { getEngine } from '@ipm/game-engines';
+import { verifyAccessToken } from '@gamearch/common';
+import { getEngine } from '@gamearch/game-engines';
 
 /**
  * Realtime layer. Sockets are local to this replica; cross-replica delivery goes through Redis

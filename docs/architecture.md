@@ -50,7 +50,7 @@ flowchart LR
 | **league** | `league.ratings`, `league.rewards`, season boards | Elo MMR, tiers, weekly seasons per tier, season-end rewards |
 | **rewards** | `rewards.wallets/ledger/daily_login/mission_progress` | Coin wallet, daily login streak, daily missions, pays league rewards |
 
-Shared code (not services): `@ipm/common` (infrastructure), `@ipm/game-engines` (pure rules), `@ipm/rating` (pure Elo/tier/season rules).
+Shared code (not services): `@gamearch/common` (infrastructure), `@gamearch/game-engines` (pure rules), `@gamearch/rating` (pure Elo/tier/season rules).
 
 ## 3. Communication styles
 
@@ -184,6 +184,6 @@ Because nothing lives in process memory, a replica crash loses no timers.
 ## 6. Code conventions
 
 * ESM modules, Node >= 22, no build step.
-* Every service: `src/index.js` (wiring) -> `routes.js` (HTTP + zod validation) -> `service.js` (business logic, owns its collections). Pure rule modules (`matching.js`, `definitions.js`, `@ipm/rating`, engines) have no I/O and are unit tested.
+* Every service: `src/index.js` (wiring) -> `routes.js` (HTTP + zod validation) -> `service.js` (business logic, owns its collections). Pure rule modules (`matching.js`, `definitions.js`, `@gamearch/rating`, engines) have no I/O and are unit tested.
 * Errors are `AppError`s with a stable `code`; the shared handler renders `{error:{code,message,details}}`.
 * All input is validated at the edge (zod for HTTP, shape checks for WS).

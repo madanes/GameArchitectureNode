@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { asyncHandler, validate, authenticate, forbidden } from '@ipm/common';
+import { asyncHandler, validate, authenticate, forbidden } from '@gamearch/common';
 
 const createSchema = z.object({
   game: z.string().default('ludo'),

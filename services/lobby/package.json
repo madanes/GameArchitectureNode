@@ -1,12 +1,12 @@
 {
-  "name": "@ipm/lobby-service",
+  "name": "@gamearch/lobby-service",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": { "start": "node src/index.js" },
   "dependencies": {
-    "@ipm/common": "*",
-    "@ipm/game-engines": "*",
-    "@ipm/rating": "*"
+    "@gamearch/common": "*",
+    "@gamearch/game-engines": "*",
+    "@gamearch/rating": "*"
   }
 }

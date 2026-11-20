@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { TIERS } from '@ipm/rating';
-import { asyncHandler, validate, authenticate } from '@ipm/common';
+import { TIERS } from '@gamearch/rating';
+import { asyncHandler, validate, authenticate } from '@gamearch/common';
 
 const boardQuery = z.object({
   scope: z.enum(['rating', 'week']).default('rating'),

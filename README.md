@@ -1,4 +1,4 @@
-# InfinityPlay Node
+# GameArchitecture Node
 
 A microservice platform for real-time, turn-based multiplayer games. **Ludo** is the first game;
 the engine layer is pluggable so Snakes & Ladders, Carrom, card games etc. can be added without touching service code.

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { loadConfig, createLogger, connectMongo, createRedis, createEventBus, createApp, finalize, listen, onShutdown, authenticate, asyncHandler, isDuplicateKey } from '@ipm/common';
+import { loadConfig, createLogger, connectMongo, createRedis, createEventBus, createApp, finalize, listen, onShutdown, authenticate, asyncHandler, isDuplicateKey } from '@gamearch/common';
 
 const config = loadConfig('stats-service');
 const port = Number(process.env.STATS_PORT || process.env.PORT || 4004);

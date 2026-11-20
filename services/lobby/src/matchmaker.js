@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { INITIAL_RATING } from '@ipm/rating';
+import { INITIAL_RATING } from '@gamearch/rating';
 import { findMatches, planBotFill, BOT_NAMES } from './matching.js';
 
 const QUEUES = 'lobby:mm:queues'; // set of "game:size" queues that may contain players

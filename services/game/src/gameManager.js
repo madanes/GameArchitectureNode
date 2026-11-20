@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
-import { getEngine, EngineError } from '@ipm/game-engines';
-import { AppError, withLock, isDuplicateKey, notFound, forbidden } from '@ipm/common';
+import { getEngine, EngineError } from '@gamearch/game-engines';
+import { AppError, withLock, isDuplicateKey, notFound, forbidden } from '@gamearch/common';
 
 const STATE_TTL_SEC = 60 * 60 * 24; // abandoned games vanish after a day
 const FINISHED_TTL_SEC = 60 * 10; // finished games stay readable (reconnect/results) for 10 minutes

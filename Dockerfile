@@ -1,4 +1,4 @@
-# One Dockerfile for every service:  docker build --build-arg SERVICE=game -t ipm-game .
+# One Dockerfile for every service:  docker build --build-arg SERVICE=game -t gamearch-game .
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./

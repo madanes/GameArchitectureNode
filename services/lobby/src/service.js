@@ -1,6 +1,6 @@
 import { randomUUID, randomInt } from 'node:crypto';
-import { getEngine, listGames } from '@ipm/game-engines';
-import { badRequest, conflict, forbidden, notFound } from '@ipm/common';
+import { getEngine, listGames } from '@gamearch/game-engines';
+import { badRequest, conflict, forbidden, notFound } from '@gamearch/common';
 import { BOT_NAMES } from './matching.js';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

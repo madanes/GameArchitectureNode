@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { unauthorized } from './errors.js';
 
-const ISSUER = 'infinityplay';
+const ISSUER = 'gamearch';
 
 export const signAccessToken = (user, { secret, ttlSec }) =>
   jwt.sign({ username: user.username }, secret, { subject: user.id, expiresIn: ttlSec, issuer: ISSUER });

@@ -1,5 +1,5 @@
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import { loadConfig, createLogger, createRedis, createApp, finalize, listen, onShutdown, authenticate, rateLimit } from '@ipm/common';
+import { loadConfig, createLogger, createRedis, createApp, finalize, listen, onShutdown, authenticate, rateLimit } from '@gamearch/common';
 
 const config = loadConfig('gateway');
 const port = Number(process.env.GATEWAY_PORT || process.env.PORT || 8080);

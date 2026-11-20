@@ -1,10 +1,10 @@
 {
-  "name": "@ipm/stats-service",
+  "name": "@gamearch/stats-service",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": { "start": "node src/index.js" },
   "dependencies": {
-    "@ipm/common": "*"
+    "@gamearch/common": "*"
   }
 }

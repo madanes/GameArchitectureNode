@@ -1,11 +1,11 @@
 {
-  "name": "@ipm/gateway",
+  "name": "@gamearch/gateway",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": { "start": "node src/index.js" },
   "dependencies": {
-    "@ipm/common": "*",
+    "@gamearch/common": "*",
     "http-proxy-middleware": "^3.0.3"
   }
 }

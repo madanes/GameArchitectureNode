@@ -1,4 +1,4 @@
-name: infinityplay
+name: gamearch
 
 x-service: &service
   build: { context: ., args: { SERVICE: "" } }

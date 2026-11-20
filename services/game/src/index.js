@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { loadConfig, createLogger, connectMongo, createRedis, createEventBus, createApp, finalize, listen, onShutdown, authenticate, asyncHandler } from '@ipm/common';
+import { loadConfig, createLogger, connectMongo, createRedis, createEventBus, createApp, finalize, listen, onShutdown, authenticate, asyncHandler } from '@gamearch/common';
 import { createGameManager, userChannel } from './gameManager.js';
 import { attachWebSocket } from './ws.js';
 

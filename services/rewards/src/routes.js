@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { asyncHandler, authenticate } from '@ipm/common';
+import { asyncHandler, authenticate } from '@gamearch/common';
 
 export function buildRoutes({ service, config }) {
   const r = Router();

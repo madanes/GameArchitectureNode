@@ -1,5 +1,5 @@
 {
-  "name": "@ipm/game-engines",
+  "name": "@gamearch/game-engines",
   "version": "1.0.0",
   "private": true,
   "type": "module",

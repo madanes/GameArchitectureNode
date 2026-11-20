@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { asyncHandler, validate, authenticate } from '@ipm/common';
+import { asyncHandler, validate, authenticate } from '@gamearch/common';
 
 const credentials = {
   username: z.string().min(3).max(24).regex(/^[a-zA-Z0-9_-]+$/),

@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { signAccessToken, conflict, unauthorized, isDuplicateKey } from '@ipm/common';
+import { signAccessToken, conflict, unauthorized, isDuplicateKey } from '@gamearch/common';
 
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 const publicUser = (u) => ({ id: u._id, username: u.username, isGuest: !!u.isGuest });
