@@ -74,6 +74,8 @@ Update `engines`:
 "engines": { "node": ">=24" }
 ```
 
+> **Native modules** (bcrypt, sharp, argon2, sqlite3, ...) must be rebuilt for the new Node: see [native-modules.md](native-modules.md).
+
 ## Step 5 - Pin the version everywhere
 
 ```bash

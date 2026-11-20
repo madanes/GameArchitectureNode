@@ -1,0 +1,167 @@
+# Example CircleCI pipeline for GameArchitectureNode.
+# Copy to .circleci/config.yml. Keep the Node version in sync with .nvmrc / engines / Dockerfile.
+# Image tags (cimg/node, mongo, redis) are examples: use the current LTS / versions you run in production.
+version: 2.1
+
+parameters:
+  node-version:
+    type: string
+    default: "24.0"        # cimg/node tag: use the LTS you target (the repo requires >= 22.9)
+
+executors:
+  node:
+    docker:
+      - image: cimg/node:<< pipeline.parameters.node-version >>
+    resource_class: medium
+    working_directory: ~/project
+
+  node-with-datastores:
+    docker:
+      - image: cimg/node:<< pipeline.parameters.node-version >>
+        environment:
+          NODE_ENV: test
+          JWT_SECRET: ci-only-secret          # test value, not a real secret
+          MONGO_URL: mongodb://127.0.0.1:27017
+          REDIS_URL: redis://127.0.0.1:6379
+          # make bot games finish quickly in the smoke test
+          BOT_DELAY_MS: "50"
+          MM_BOT_FILL_SEC: "3"
+      - image: mongo:7                         # service container: reachable on localhost
+      - image: redis:7-alpine
+    resource_class: medium
+    working_directory: ~/project
+
+commands:
+  restore-deps:
+    steps:
+      - restore_cache:
+          keys:
+            # bump "v1" to invalidate; the Node version keeps native builds from mixing
+            - npm-v1-node<< pipeline.parameters.node-version >>-{{ checksum "package-lock.json" }}
+            - npm-v1-node<< pipeline.parameters.node-version >>-
+  wait-for-datastores:
+    steps:
+      - run:
+          name: Wait for MongoDB and Redis
+          command: |
+            for i in $(seq 1 30); do
+              (echo > /dev/tcp/127.0.0.1/27017) 2>/dev/null && (echo > /dev/tcp/127.0.0.1/6379) 2>/dev/null && exit 0
+              sleep 1
+            done
+            echo "datastores did not start" && exit 1
+
+jobs:
+  install:
+    executor: node
+    steps:
+      - checkout
+      - restore-deps
+      - run: npm ci
+      - save_cache:
+          key: npm-v1-node<< pipeline.parameters.node-version >>-{{ checksum "package-lock.json" }}
+          paths:
+            - ~/.npm
+      - persist_to_workspace:
+          root: ~/project
+          paths:
+            - .
+  unit-tests:
+    executor: node
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - run:
+          name: Unit tests
+          command: |
+            mkdir -p test-results
+            npm test -- --test-reporter=junit --test-reporter-destination=test-results/junit.xml \
+              --test-reporter=spec --test-reporter-destination=stdout
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+  audit:
+    executor: node
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - run:
+          name: Dependency audit (advisory)
+          command: npm audit --omit=dev --audit-level=high || true
+  smoke:
+    executor: node-with-datastores
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - wait-for-datastores
+      - run:
+          name: Start all services (gateway, auth, lobby, game, stats, league, rewards)
+          command: npm run dev > services.log 2>&1
+          background: true
+      - run:
+          name: Wait for gateway
+          command: |
+            for i in $(seq 1 40); do
+              curl -sf http://127.0.0.1:8080/health && exit 0
+              sleep 1
+            done
+            echo "gateway did not become healthy"; tail -n 100 services.log; exit 1
+      - run:
+          name: End-to-end smoke test (REST + WebSocket matchmaking + bots + league + rewards)
+          command: npm run smoke
+      - run:
+          name: Show service logs on failure
+          when: on_fail
+          command: tail -n 200 services.log
+      - store_artifacts:
+          path: services.log
+  docker-build:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build image
+          command: docker build -t gamearch:${CIRCLE_SHA1:0:8} .
+  publish-image:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build, log in and push
+          # REGISTRY_URL, REGISTRY_USER, REGISTRY_TOKEN come from the "docker-registry" context
+          command: |
+            TAG=${CIRCLE_SHA1:0:8}
+            IMAGE="${REGISTRY_URL}/gamearch"
+            echo "$REGISTRY_TOKEN" | docker login "$REGISTRY_URL" -u "$REGISTRY_USER" --password-stdin
+            docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
+            docker push "$IMAGE:$TAG"
+            docker push "$IMAGE:latest"
+
+workflows:
+  build-test-deploy:
+    jobs:
+      - install
+      - unit-tests:
+          requires: [install]
+      - audit:
+          requires: [install]
+      - smoke:
+          requires: [install]
+      - docker-build:
+          requires: [unit-tests, smoke]
+      - hold-publish:
+          type: approval                     # manual click in the CircleCI UI
+          requires: [docker-build]
+          filters:
+            branches:
+              only: main
+      - publish-image:
+          context: docker-registry           # secrets live here, restricted to this project/branch
+          requires: [hold-publish]
+          filters:
+            branches:
+              only: main
